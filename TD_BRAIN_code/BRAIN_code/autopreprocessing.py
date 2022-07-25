@@ -47,12 +47,15 @@ log:
 #%%
 # Import the python packages that are needed in multiple functions
 import os
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from scipy.signal import butter, sosfiltfilt, filtfilt, iirnotch, hilbert, convolve, boxcar, medfilt
 from scipy import signal
 from scipy.signal.windows import hann
 from scipy.stats import zscore
+import mne
 
 
 # %% initiate object
@@ -111,9 +114,9 @@ class dataset:
         self.labels = ['Fp1','Fp2',
                'F7','F3','Fz','F4','F8',
                'FC3','FCz','FC4',
-               'T7','C3','Cz','C4','T8',
-               'CP3','CPz','CP4',
-               'P7','P3','Pz','P4','P8',
+               'T3','C3','Cz','C4','T4',
+               'CP3','CPz','CP4','T5',
+               'P3','Pz','P4','T6',
                'O1','Oz','O2',
                'VPVA','VNVB','HPHL','HNHR', 'Erbs', 'OrbOcc','Mass']
 
@@ -127,26 +130,26 @@ class dataset:
                              'F3': ['Fp1','Fz','FC3','F7'],
                              'Fz': ['F4','FCz','F3'],
                              'F4': ['Fp2','F8','FC4','Fz'],
-                             'F8': ['Fp2','F4','T8'],
+                             'F8': ['Fp2','F4','T4'],
                              'FC3':['F3', 'C3','FCz'],
                              'FCz':['Fz', 'FC3','FC4','Cz'],
                              'FC4':['F4','FCz','C4'],
-                             'T7': ['F7', 'P7', 'C3'],
+                             'T3': ['F7', 'T5', 'C3'],
                              'C3': ['FC3','Cz','CP3'],
                              'Cz': ['FCz','CPz','C3','C4'],
                              'C4': ['Cz', 'CP4', 'FC4'],
-                             'T8': ['F8', 'P8', 'C4'],
+                             'T4': ['F8', 'T6', 'C4'],
                              'CP3': ['C3','CPz','P3'],
                              'CPz': ['Cz','CP4','CP3','Pz'],
                              'CP4': ['C4','P4','CPz'],
-                             'P7': ['F7','P3','O1'],
-                             'P3': ['P7','CP3','Pz','O1'],
+                             'T5': ['F7','P3','O1'],
+                             'P3': ['T5','CP3','Pz','O1'],
                              'Pz': ['P3','CPz','P4','Oz'],
-                             'P4': ['Pz','CP4','P8','O2'],
-                             'P8': ['T8','P4','O2'],
-                             'O1': ['P7','P3','Oz'],
+                             'P4': ['Pz','CP4','T6','O2'],
+                             'T6': ['T4','P4','O2'],
+                             'O1': ['T5','P3','Oz'],
                              'Oz': ['O1','Pz','O2'],
-                             'O2': ['Oz','P4','P8']}
+                             'O2': ['Oz','P4','T6']}
 
     def loaddata(self):
         '''
@@ -172,11 +175,13 @@ class dataset:
         # read the data in the right order. In the .csv files extracted from the .brc
         # files there are a lot of spaces included into the heading. Make sure this
         # is in the same order
-        if self.info['fileID'][-4:] =='.csv':
-            tmp = pd.read_csv(self.info['fileID'],low_memory=False,sep = ',',
-                              header = 0, usecols=self.labels, float_precision = 'high')
-            self.data = tmp.values.T.astype(float)
-            self.labels=np.array(self.labels)
+        # tmp = pd.read_csv(self.info['fileID'],low_memory=False,sep = ',', header = 0, usecols=self.labels, float_precision = 'high')
+        # self.data = tmp.values.T.astype(float)
+        raw = mne.io.read_raw_edf(self.info["fileID"])
+        raw.pick_channels(self.labels)  # select only these channels
+        raw.load_data()
+        self.data = raw.get_data()
+        self.labels = np.array(self.labels)
 
     def bipolarEOG(self):
         '''
@@ -1071,6 +1076,7 @@ class dataset:
         n_trials, n_rows,n_samples = data.shape[0],data.shape[1], data.shape[2]
 
         import datetime
+        Path(pdfpath+outname).parent.mkdir(parents=True, exist_ok=True)
         with PdfPages(pdfpath+outname+'.pdf') as pp:
             #pp = PdfPages(savepath+outname+'test.pdf')
             firstPage = plt.figure(figsize=(11.69,8.27))
@@ -1130,7 +1136,7 @@ class dataset:
                 pp.savefig()
                 plt.close()
 
-    def save(self, savepath, matfile='no', csv = 'no', npy = 'yes'):
+    def save(self, savepath, matfile='no', csv = 'no', npy = 'no', eeglab=True):
         '''
         This function is used to save the EEG data (only data in csv, the dataset
         class object is pickled to .npy, in matlab format it is saved in a dictonary format,
@@ -1198,6 +1204,18 @@ class dataset:
                            'time': np.arange(0,(self.data.shape[-1]/self.Fs),1/self.Fs),
                            'info': self.info}
             sio.savemat(savepath + '/' + outname +'.mat', mat_dataset)
+
+        if eeglab:
+            if len(self.data) == 1:
+                self.data = self.data[0]
+            if len(self.data.shape) == 2:
+                raw_info = mne.create_info(list(self.labels), self.Fs, "eeg")
+                fname = f"{savepath}/{outname}.set"
+                raw = mne.io.RawArray(self.data, raw_info)
+                raw._filenames = [fname]
+                Path(fname).parent.mkdir(parents=True, exist_ok=True)
+                raw.export(fname, overwrite=True)
+
 
     def plot_EEG(self, inp='data' , scaling=[-70,70], title=None):
 
