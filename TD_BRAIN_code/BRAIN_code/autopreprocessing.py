@@ -181,6 +181,7 @@ class dataset:
         raw.pick_channels(self.labels)  # select only these channels
         raw.load_data()
         self.data = raw.get_data()
+        self.fs = raw.info["sfreq"]
         self.labels = np.array(self.labels)
 
     def bipolarEOG(self):
@@ -221,7 +222,7 @@ class dataset:
         self.data[:30,:] = self.data[:30,:]-(np.nanmean(self.data[:30,:],axis=1).reshape((self.data[:30,:].shape[0],1)))
         self.info['demeaned']= 'all channels'
 
-    def apply_filters(self, trlpadding=10, hpfreq=0.5, lpfreq=100, notchfilt = 'yes', notchfreq=50, Q=100):
+    def apply_filters(self, trlpadding=10, hpfreq=2, lpfreq=20, notchfilt='no', notchfreq=50, Q=100):
         '''
             Apply filters, to remove low frequency trends, high-, and notch frequencies.
             - a bidirectional (zero phase) IIR filter will be aplied for the
@@ -600,7 +601,7 @@ class dataset:
         self.artifacts['KURTtrl'] = KURTtrl
 
 
-    def detect_extremevoltswing(self, threshold = 200, padding = 0.05, overlap = 0.05, winlen = 0.5):
+    def detect_extremevoltswing(self, threshold = 120, padding = 0.05, overlap = 0.05, winlen = 0.5):
 
         '''
         Detect segments where there is extreme voltage swing, for each
@@ -867,7 +868,7 @@ class dataset:
         self.labels = np.hstack((self.labels[:Och+1], 'artifacts', self.labels[Och+1:]))
         self.info['no. segments']=0
 
-    def segment(self, marking = 'no', trllength = 2, remove_artifact = 'no'):
+    def segment(self, marking = 'no', trllength = 1, remove_artifact = 'no'):
         '''
         Segment the data into epochs, either removing the artifacted epochs at
         the same time or not, based on the input. If removing artifacts the data
@@ -932,7 +933,7 @@ class dataset:
                     ''' select the segments around the artifacts (as much as possible) '''
                     ''' from the first sample to the beginning of the last artifact '''
                     t = 0
-                    trials=np.zeros((1,self.data.shape[1],np.int(self.Fs*epochlength)));marktrials = trials.copy();
+                    trials=np.zeros((1,self.data.shape[0],np.int(self.Fs*epochlength)));marktrials = trials.copy();
                     trl = np.array([0,0],dtype=int)
                     for i in range(ARTtrl.shape[0]):
                         if (ARTtrl[i,0]-t)>(np.int(epochlength*self.Fs)):
@@ -958,7 +959,7 @@ class dataset:
                             marktrials = np.concatenate([marktrials,markedsegs],axis=0)
 
                     ''' data from the artifacts themselves '''
-                    self.artidata=np.zeros((ARTtrl.shape[0],self.data.shape[1],np.nanmax(np.diff(ARTtrl))))
+                    self.artidata=np.zeros((ARTtrl.shape[0],self.data.shape[0],np.nanmax(np.diff(ARTtrl))))
                     for i in range(ARTtrl.shape[0]):
                         self.artidata[i,:,:np.diff(ARTtrl[i,:])[0]] = self.data[:,ARTtrl[i,0]:ARTtrl[i,1]]
 
@@ -1208,14 +1209,20 @@ class dataset:
         if eeglab:
             if len(self.data) == 1:
                 self.data = self.data[0]
-            if len(self.data.shape) == 2:
+            if len(self.data.shape) == 2:  # continuous
                 raw_info = mne.create_info(list(self.labels), self.Fs, "eeg")
                 fname = f"{savepath}/{outname}.set"
                 raw = mne.io.RawArray(self.data, raw_info)
                 raw._filenames = [fname]
                 Path(fname).parent.mkdir(parents=True, exist_ok=True)
                 raw.export(fname, overwrite=True)
-
+            elif len(self.data.shape) == 3:  # epoched
+                epoch_info = mne.create_info(list(self.labels), self.Fs, "eeg")
+                fname = f"{savepath}/{outname}.set"
+                epochs = mne.EpochsArray(self.data, epoch_info)
+                # epochs._filenames = [fname]
+                Path(fname).parent.mkdir(parents=True, exist_ok=True)
+                epochs.export(fname, overwrite=True)
 
     def plot_EEG(self, inp='data' , scaling=[-70,70], title=None):
 
@@ -1435,7 +1442,7 @@ class dataset:
 
         return bnext, bprev
 
-    def rereference(self, newrefchan = None):
+    def rereference(self, newrefchan = 'avgref'):
 
         ref = np.empty(self.data[:,1,:].shape);ref[:]=np.nan
         if newrefchan == 'avgref':

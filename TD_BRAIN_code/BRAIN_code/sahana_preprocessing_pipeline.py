@@ -40,16 +40,16 @@ def autopreprocess_standard(source, dest):
             tmpdat.residual_eyeblinks()
             tmpdat.define_artifacts()
 
-            trllength = 'all'
+            trllength = 1
             npy = copy.deepcopy(tmpdat)
-            npy.segment(trllength=trllength, remove_artifact='no')
+            npy.segment(trllength=trllength, remove_artifact='yes')
             # subpath = os.path.join(preprocpath,s)
             # Path(subpath).mkdir(parents=True, exist_ok=True)
             sesspath = os.path.join(dest, sub)
             Path(sesspath).mkdir(parents=True, exist_ok=True)
             npy.save(sesspath)
 
-            rawreport = True
+            rawreport = False
             if rawreport:  # for the raw data report
                 lengthtrl = 10
                 pdf = copy.deepcopy(tmpdat)
