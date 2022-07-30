@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import shutil
 
 from autopreprocessing import dataset as ds
 import os
@@ -9,8 +10,8 @@ import sys
 
 
 def autopreprocess_standard(source, dest):
-    subs = [s for s in os.listdir(source) if os.path.isdir(os.path.join(
-        source, s)) if not any([e in s for e in ['preprocessed', 'results', 'DS']])]
+    shutil.rmtree(dest, ignore_errors=True)
+    subs = [s for s in os.listdir(source) if os.path.isdir(os.path.join(source, s)) if not any([e in s for e in ['preprocessed', 'results', 'DS']])]
     subs = np.sort(subs)
     print(str(len(subs))+' subjects')
     k = 0

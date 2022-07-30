@@ -111,45 +111,19 @@ class dataset:
         self.Fs = Fs  # sampling frequency (default is 500 Hz, as is standard use for Brainclinics Diagnostics EEG)
         # initiate standard order of EEG- and additional channels that will be included in the
         # recorded data
-        self.labels = ['Fp1', 'Fp2',
-                       'F7', 'F3', 'Fz', 'F4', 'F8',
-                       'FC3', 'FCz', 'FC4',
-                       'T3', 'C3', 'Cz', 'C4', 'T4',
-                       'CP3', 'CPz', 'CP4', 'T5',
-                       'P3', 'Pz', 'P4', 'T6',
-                       'O1', 'Oz', 'O2',
-                       'VPVA', 'VNVB', 'HPHL', 'HNHR', 'Erbs', 'OrbOcc', 'Mass']
+        # self.labels = ['Fp1', 'Fp2',
+        #                'F7', 'F3', 'Fz', 'F4', 'F8',
+        #                'FC3', 'FCz', 'FC4',
+        #                'T3', 'C3', 'Cz', 'C4', 'T4',
+        #                'CP3', 'CPz', 'CP4', 'T5',
+        #                'P3', 'Pz', 'P4', 'T6',
+        #                'O1', 'Oz', 'O2',
+        #                'VPVA', 'VNVB', 'HPHL', 'HNHR', 'Erbs', 'OrbOcc', 'Mass']
 
         # also initiate a dictionary defining the neighbouring channels for each EEG channel,
         # for repairing the channel if it is too noisy, bridging or broken. For
         # the sampe reason we need to know the location of each channel.See the subfunction
         # 'interpolate_data' for more information.
-        self.neighblabels = {'Fp1': ['Fp2', 'F7', 'F3'],
-                             'Fp2': ['Fp1', 'F8', 'F4'],
-                             'F7': ['Fp1', 'F3', 'F7'],
-                             'F3': ['Fp1', 'Fz', 'FC3', 'F7'],
-                             'Fz': ['F4', 'FCz', 'F3'],
-                             'F4': ['Fp2', 'F8', 'FC4', 'Fz'],
-                             'F8': ['Fp2', 'F4', 'T4'],
-                             'FC3': ['F3', 'C3', 'FCz'],
-                             'FCz': ['Fz', 'FC3', 'FC4', 'Cz'],
-                             'FC4': ['F4', 'FCz', 'C4'],
-                             'T3': ['F7', 'T5', 'C3'],
-                             'C3': ['FC3', 'Cz', 'CP3'],
-                             'Cz': ['FCz', 'CPz', 'C3', 'C4'],
-                             'C4': ['Cz', 'CP4', 'FC4'],
-                             'T4': ['F8', 'T6', 'C4'],
-                             'CP3': ['C3', 'CPz', 'P3'],
-                             'CPz': ['Cz', 'CP4', 'CP3', 'Pz'],
-                             'CP4': ['C4', 'P4', 'CPz'],
-                             'T5': ['F7', 'P3', 'O1'],
-                             'P3': ['T5', 'CP3', 'Pz', 'O1'],
-                             'Pz': ['P3', 'CPz', 'P4', 'Oz'],
-                             'P4': ['Pz', 'CP4', 'T6', 'O2'],
-                             'T6': ['T4', 'P4', 'O2'],
-                             'O1': ['T5', 'P3', 'Oz'],
-                             'Oz': ['O1', 'Pz', 'O2'],
-                             'O2': ['Oz', 'P4', 'T6']}
 
     def loaddata(self):
         '''
@@ -177,9 +151,18 @@ class dataset:
         # is in the same order
         # tmp = pd.read_csv(self.info['fileID'],low_memory=False,sep = ',', header = 0, usecols=self.labels, float_precision = 'high')
         # self.data = tmp.values.T.astype(float)
-        raw = mne.io.read_raw_edf(self.info["fileID"])
-        raw.pick_channels(self.labels)  # select only these channels
+        eeg_fname = self.info["fileID"]
+        if eeg_fname.endswith(".edf"):
+            raw = mne.io.read_raw_edf(eeg_fname)
+        elif eeg_fname.endswith(".set"):
+            raw = mne.io.read_raw_eeglab(eeg_fname)
+        else:
+            raise ValueError("EEG file format not supported")
+        # raw.pick_channels(self.labels)  # select only these channels
         raw.load_data()
+        self.labels = raw.ch_names
+        self.ch_cnt = len(raw.ch_names)
+        self.total_ch_cnt = self.ch_cnt
         self.mne_raw = raw
         self.data = raw.get_data()
         self.fs = raw.info["sfreq"]
@@ -200,16 +183,15 @@ class dataset:
             replaced by ['VEOG','HEOG'].
         '''
         # VEOG
-        VPVA = np.where(self.labels == 'VPVA')[0][0]
-        VNVB = np.where(self.labels == 'VNVB')[0][0]
+        VPVA = np.where(self.labels == 'E8')[0][0] # E8
+        VNVB = np.where(self.labels == 'E126')[0][0] # E126
         # HEOG
-        HPHL = np.where(self.labels == 'HPHL')[0][0]
-        HNHR = np.where(self.labels == 'HNHR')[0][0]
-        # channels 0-26 are EEG channels 30+ are additional channels
-        self.data = np.vstack((self.data[0:26],
-                               [(self.data[VPVA] - self.data[VNVB]), (self.data[HPHL] - self.data[HNHR])],
-                               self.data[30:]))
-        self.labels = np.append(self.labels[0:26], np.append(['VEOG', 'HEOG'], self.labels[30:]))
+        HPHL = np.where(self.labels == 'E128')[0][0] # E128
+        HNHR = np.where(self.labels == 'E125')[0][0] # E125
+        # channels 0-self.ch_cnt are EEG channels self.total_ch_cnt+ are additional channels
+        self.data = np.vstack((self.data[0:self.ch_cnt],
+                               [(self.data[VPVA] - self.data[VNVB]), (self.data[HPHL] - self.data[HNHR])]))
+        self.labels = np.append(self.labels[0:self.ch_cnt], np.append(['VEOG', 'HEOG'], self.labels[self.total_ch_cnt:]))
 
     def demean(self):
         '''
@@ -224,8 +206,8 @@ class dataset:
             The dataset object with the data demeaned.
         '''
 
-        self.data[:30, :] = self.data[:30, :] - (
-            np.nanmean(self.data[:30, :], axis=1).reshape((self.data[:30, :].shape[0], 1)))
+        self.data[:self.total_ch_cnt, :] = self.data[:self.total_ch_cnt, :] - (
+            np.nanmean(self.data[:self.total_ch_cnt, :], axis=1).reshape((self.data[:self.total_ch_cnt, :].shape[0], 1)))
         self.info['demeaned'] = 'all channels'
 
     def apply_filters(self, trlpadding=10, hpfreq=2, lpfreq=20, notchfilt='no', notchfreq=50, Q=100):
@@ -327,7 +309,7 @@ class dataset:
 
         eye_channel = ['VEOG', 'HEOG']
         trlpadding = 1
-        n_data_rows = 26  # number of EEG channels
+        n_data_rows = self.ch_cnt  # number of EEG channels
 
         Aweight = np.zeros((len(eye_channel), n_data_rows, (2 * trlpadding * self.Fs) + self.data.shape[1]))
         datapaddedEOG = np.zeros((len(eye_channel), (2 * trlpadding * self.Fs) + self.data.shape[1]))
@@ -386,7 +368,7 @@ class dataset:
                                                   self.data[r, len(filtEOG) - trlpadding * self.Fs:]))
 
             artsamples = np.zeros(datapaddeddata.shape[1], dtype=int)
-            if len(Atrl) > 0:
+            if len(Atrl.shape) == 2 and len(Atrl) > 0:
                 for i in range(Atrl.shape[0]):
                     if Atrl[i, 0] == 0:
                         artsamples[0:Atrl[0, 1] + np.int((Atrl[0, 1] - 0) * padding)] = 1
@@ -482,7 +464,7 @@ class dataset:
         hilbEMG = hilbert(filtEMG.copy(), N=N, axis=-1)
         amplenv = np.abs(hilbEMG[:, :filtEMG.shape[1]])
 
-        n_data_rows = 26  # number of EEG channels
+        n_data_rows = self.ch_cnt  # number of EEG channels
         EMGsamps = np.zeros((n_data_rows, self.data.shape[1]))
 
         hanndata = np.zeros((n_data_rows, self.data.shape[1]))
@@ -529,7 +511,7 @@ class dataset:
             that was detected included in the artifacts field.
         '''
 
-        n_data_rows = 26  # number of EEG channels
+        n_data_rows = self.ch_cnt  # number of EEG channels
 
         inpJUMPsamps = np.zeros((n_data_rows, self.data.shape[1]))
         filtdata = np.zeros(self.data.shape)
@@ -583,7 +565,7 @@ class dataset:
         winstarts = np.arange(0, self.data.shape[1] - (winlen * self.Fs), overlap * self.Fs)
         winends = winstarts + winlen * self.Fs
 
-        n_data_rows = 26  # number of EEG channels
+        n_data_rows = self.ch_cnt  # number of EEG channels
 
         kurt = np.zeros((n_data_rows, self.data.shape[-1]))
         inpKURTsamps = kurt.copy()
@@ -640,7 +622,7 @@ class dataset:
         winstarts = np.arange(0, self.data.shape[1] - (winlen * self.Fs), overlap * self.Fs)
         winends = winstarts + winlen * self.Fs
 
-        n_data_rows = 26  # number of EEG channels
+        n_data_rows = self.ch_cnt  # number of EEG channels
 
         swing = np.zeros((n_data_rows, self.data.shape[-1]))
         inpSWINGsamps = np.zeros((n_data_rows, self.data.shape[-1]))
@@ -688,7 +670,7 @@ class dataset:
         hilbEB = hilbert(filtEB.copy(), N=N, axis=-1)
         amplenv = np.abs(hilbEB[:, :filtEB.shape[1]])
 
-        n_data_rows = 26  # number of EEG channels
+        n_data_rows = self.ch_cnt  # number of EEG channels
 
         EBsamps = np.zeros((n_data_rows, self.data.shape[1]))
 
@@ -781,7 +763,7 @@ class dataset:
         that will be dealt with here '''
 
         artsamps = np.zeros((self.data.shape[0], self.data.shape[1]), dtype=int)
-        n_data_rows = 26  # only the EEG channels
+        n_data_rows = self.ch_cnt  # only the EEG channels
 
         for r in range(n_data_rows):
             if len(emgtrl) > 0:
@@ -859,17 +841,13 @@ class dataset:
 
         '''======== interpolate the data based on the average of neighbouring channels (using the Euclidian Distance) ========'''
         if len(combidx) >= 1:
-            repaireddata = np.zeros((self.data.shape))
             print('Remove artifacts: repairing/ interpolating bad, empty and bridging channel(s) \n')
-            repaireddata, self.info['repairing channels'], repaired, intchan = self._interpolate_data(self.data,
-                                                                                                      self.labels,
-                                                                                                      self.neighblabels,
-                                                                                                      combidx)
-            if repaired == 'yes':
+            repaireddata, repaired, intchan = self._interpolate_data(self.data, self.labels, combidx)
+            if repaired:
                 self.info['repaired channels'] = []
                 self.data = repaireddata
                 for b in range(len(intchan)):
-                    self.info['repaired channels'] = np.append(self.info['repaired channels'], self.labels[intchan[b]])
+                    self.info['repaired channels'].append(self.labels[intchan[b]])
                     artsamps[intchan[b], :] = 0
             elif repaired == 'no':
                 self.info['data quality'] = 'bad'
@@ -881,10 +859,9 @@ class dataset:
         else:
             self.info['data quality'] = 'OK'
 
-        Och = np.squeeze(np.where(np.array(self.labels) == 'O2')[0])
         self.trl = np.array([0, self.data.shape[-1]], dtype=int)
-        self.data = np.vstack((self.data[:Och + 1, :], artsamples, self.data[Och + 1:, :]))
-        self.labels = np.hstack((self.labels[:Och + 1], 'artifacts', self.labels[Och + 1:]))
+        self.data = np.vstack((self.data[:self.ch_cnt + 1, :], artsamples, self.data[self.ch_cnt + 1:, :]))
+        self.labels = np.hstack((self.labels[:self.ch_cnt + 1], 'artifacts', self.labels[self.ch_cnt + 1:]))
         self.info['no. segments'] = 0
 
     def segment(self, marking='no', trllength=1, remove_artifact='no'):
@@ -1033,136 +1010,8 @@ class dataset:
             elif self.info['no. segments'] < (0.33 * (totallength / (epochlength * self.Fs))):
                 self.info['data quality'] = 'bad'
 
-    def save_pdfs(self, savepath, inp='data', scaling=[-70, 70]):
-        """ This function saves the complet set of raw data as EEG plots for 10 second segments for visual
-        inspection for use after preprocessing, including the artifact-channel"""
-
-        import numpy as np
-        import matplotlib.pyplot as plt
-
-        from matplotlib.collections import LineCollection
-        # from matplotlib.ticker import MultipleLocator
-        from matplotlib.backends.backend_pdf import PdfPages
-
-        plt.ioff()
-        idcode = self.info['fileID'].rsplit('/')[-1].split('.')[0]
-        cond = self.info['fileID'].rsplit('/')[-1].split('.')[1]
-
-        trllength = str(self.data.shape[-1] / self.Fs)
-        if self.info['data quality'] == 'OK':
-            outname = idcode + '_' + cond + '_' + trllength + 's'
-        elif self.info['data quality'] == 'bad':
-            outname = 'BAD_' + idcode + '_' + cond + '_' + trllength + 's'
-            print('saving: data has been marked as BAD')
-        if self.info['artifact removal'] == 'none removed':
-            outname = 'RawReport_' + idcode + '_' + cond + '_' + trllength + 's'
-        elif self.info['artifact removal'] == 'no artifact detected':
-            outname = idcode + '_' + cond + '_' + trllength + 's'
-
-        '''======== make folder per idcode ========'''
-
-        if not os.path.exists(savepath + '/pdf/'):
-            os.mkdir(savepath + '/pdf/')
-        pdfpath = savepath + '/pdf/'
-
-        '''======== get the data ========='''
-        odata = getattr(self, inp)
-
-        if inp == 'artidata':
-            trl = self.arttrl
-        else:
-            trl = self.trl
-
-        # find the artifacts
-        if 'artifacts' in self.labels:
-            odata[:, 26, :] = odata[:, 26, :] * 50
-            #            odata[:,26,np.where(odata[:,26,:]==1)[0]]=0
-            data = odata[:, :27, :]
-            self.labels = self.labels[:27]
-        #        else:
-        #            data = odata[:,:26,:]
-        #            self.labels = self.labels[:26]
-        if 'Events' in self.labels:
-            events = np.where(self.labels == 'Events')[0]
-            evdat = odata[:, events, :] * 0.001
-            data = np.vstack((data, evdat))
-            self.labels = np.vstack((self.labels, 'events'))
-        if 'ECG' in self.labels:
-            ecg = np.where(self.labels == 'ECG')[0]
-            ecgdat = odata[:, ecg, :] * 0.001
-            data = np.vstack((data, ecgdat))
-            self.labels = np.vstack((self.labels, 'ECG'))
-
-        n_trials, n_rows, n_samples = data.shape[0], data.shape[1], data.shape[2]
-
-        import datetime
-        Path(pdfpath + outname).parent.mkdir(parents=True, exist_ok=True)
-        with PdfPages(pdfpath + outname + '.pdf') as pp:
-            # pp = PdfPages(savepath+outname+'test.pdf')
-            firstPage = plt.figure(figsize=(11.69, 8.27))
-            firstPage.clf()
-            t = datetime.datetime.now()
-            txt = 'Raw Data Report \n \n' + idcode + ' ' + cond + '\n \n' + ' Report created on ' + str(t)[
-                                                                                                    :16] + '\n by \n \n Research Institute Brainclinics \n Brainclinics Foundation \n Nijmegen, the Netherlands'
-            firstPage.text(0.5, 0.5, txt, transform=firstPage.transFigure, size=22, ha="center")
-            pp.savefig()
-
-            for seg in range(n_trials):
-                fig = plt.figure(num=seg, figsize=(20, 12), tight_layout=True)
-
-                plt.close()
-                t = np.arange(0, n_samples / self.Fs, (n_samples / self.Fs) / n_samples)
-
-                fig = plt.figure(num=seg, figsize=(20, 12), tight_layout=True)
-                ax1 = fig.add_subplot(1, 1, 1)
-                plt.subplots_adjust(bottom=0.2)
-                ax1.set_title(idcode + ' ' + cond + '\n Segment: ' + str(seg + 1) + ' of ' + str(n_trials))
-
-                dmin = scaling[0]  # data.min()
-                dmax = scaling[1]  # data.max()
-                dr = (dmax - dmin) * 0.7  # Crowd them a bit.
-                y0 = dmin
-                y1 = (n_rows - 1) * dr + dmax
-                ax1.set_ylim(y0, y1)
-
-                segments = []
-                ticklocs = []
-                # ticks = np.arange(0,np.int(n_samples/self.Fs),np.around((np.int((n_samples/self.Fs))/10),decimals=1))
-                for i in range(n_rows):
-                    segments.append(np.column_stack((t, data[seg, i, :])))
-                    ticklocs.append(i * dr)
-
-                ticks = np.arange(0, (data.shape[-1] / self.Fs) + ((data.shape[-1] / self.Fs) / 10),
-                                  (data.shape[-1] / self.Fs) / 10)
-                ax1.set_xticks(ticks, minor=False)
-
-                ticksl = np.arange(np.around(trl[seg, 0] / self.Fs, decimals=2),
-                                   np.around((trl[seg, 0] / self.Fs) + (n_samples / self.Fs), decimals=2) + 1,
-                                   np.around((n_samples / self.Fs) / 10, decimals=2))
-
-                ticklabels = list(ticksl)  # np.arange(ticks)
-                xlabels = ['%.1f' % elem for elem in ticklabels]
-                xlabels = np.array(xlabels, dtype=str)
-                ax1.set_xticklabels(xlabels)
-
-                offsets = np.zeros((n_rows, 2), dtype=float)
-                offsets[:, 1] = ticklocs
-
-                lines = LineCollection(np.flipud(segments), linewidths=(0.6), offsets=offsets, transOffset=None,
-                                       colors='k')
-                ax1.add_collection(lines)
-
-                ax1.set_yticks(ticklocs)
-
-                ax1.set_yticklabels(self.labels[::-1])
-
-                ax1.set_xlabel('Time (s)')
-
-                pp.savefig()
-                plt.close()
-
-    def save(self, savepath, matfile='no', csv='no', npy='no', eeglab=True):
-        '''
+    def save(self, savepath, eeglab=True, remove_peripheral=True):
+        """
         This function is used to save the EEG data (only data in csv, the dataset
         class object is pickled to .npy, in matlab format it is saved in a dictonary format,
         which can be opened as a structure array in Matlab).
@@ -1174,84 +1023,44 @@ class dataset:
         matfile:        should it be saved in matlab format? 'yes' / 'no'
         csvfile:        should it be saved in csv format? 'yes' / 'no'
         npyfile:        should it be saved in npy format? 'yes' / 'no'
-        '''
-        import pandas as pd
-        import scipy.io as sio
+        """
 
-        print('saving data \n')
         '''======== collect information about the data ========'''
 
-        idcode = self.info['fileID'].rsplit('/')[-1].split('.')[0]
-        cond = self.info['fileID'].rsplit('/')[-1].split('.')[1]
+        print("saving data")
+        print(self.info)
+        print()
+        idcode = Path(self.info['fileID']).stem
 
         trllength = str(self.data.shape[-1] / self.Fs)
         if self.info['data quality'] == 'OK':
-            outname = idcode + '_' + cond + '_' + trllength + 's'
+            outname = idcode + '_' + trllength + 's'
         else:
-            outname = 'BAD_' + idcode + '_' + cond + '_' + trllength + 's'
-            print('saving: data has been marked as BAD')
-
-        if csv == 'yes':
-            '''======== save (only) the data in csv format ========'''
-            if os.path.isdir(savepath + '/csv_data_' + cond + '_' + trllength + 's/'):
-                csvpath = savepath + '/csv_data_' + cond + '_' + trllength + 's/'
-            else:
-                os.mkdir(savepath + '/csv_data_' + cond + '_' + trllength + 's/')
-                csvpath = savepath + '/csv_data_' + cond + '_' + trllength + 's/'
-
-            for i in range(self.data.shape[0]):
-                if len(self.data.shape) == 3:
-                    df = pd.DataFrame(self.data[i, :, :].T)
-                    df.to_csv(csvpath + str((self.trl[i, 0] / self.Fs) * 1000) + '.csv', sep=',',
-                              header=list(self.labels), compression=None)
-                else:
-                    df = pd.DataFrame(self.data[:, :].T)
-                    df.to_csv(csvpath + str(0) + '.csv', sep=',', header=list(self.labels), compression=None)
-
-            # '''======== save info in txt format (per condition) ========'''
-            # df = pd.DataFrame(self.info)
-            # df.T.to_csv(csvpath + outname + '_info.txt',header=None, sep=' ', mode='a')
-
-        if npy == 'yes':
-            '''======== save the data for deep learning in Pickle ========='''
-            import pickle
-            npypath = os.path.join(savepath, outname + '.npy')
-            with open(npypath, 'wb') as output:  # Overwrites any existing file.
-                pickle.dump(vars(self), output, -1)
-
-        '''======== optionally save as matlab structure array ========='''
-        if matfile == 'yes':
-            mat_dataset = {'labels': self.labels,
-                           'trials': self.data,
-                           'dimord': 'rpt_chan_time',
-                           'artifacts': self.arttrl,
-                           'Fs': 500,
-                           'time': np.arange(0, (self.data.shape[-1] / self.Fs), 1 / self.Fs),
-                           'info': self.info}
-            sio.savemat(savepath + '/' + outname + '.mat', mat_dataset)
+            outname = 'BAD_' + idcode + '_' + trllength + 's'
+            print(f'saving {idcode}: data has been marked as BAD')
 
         if eeglab:
             if len(self.data) == 1:
                 self.data = self.data[0]
-            self.labels = self.labels[:26]
+            fname = f"{savepath}/{outname}.set"
+            Path(fname).parent.mkdir(parents=True, exist_ok=True)
+            eeg_info = mne.create_info(list(self.labels), self.Fs, "eeg")
             if len(self.data.shape) == 2:  # continuous
-                self.data = self.data[:26]
-                raw_info = mne.create_info(list(self.labels), self.Fs, "eeg")
-                fname = f"{savepath}/{outname}.set"
-                raw = mne.io.RawArray(self.data, raw_info)
-                raw._filenames = [fname]
-                Path(fname).parent.mkdir(parents=True, exist_ok=True)
-                raw.set_eeg_reference()
-                raw.export(fname, overwrite=True)
+                if len(self.data[0]) == 0:
+                    print(f"No good data left ({idcode}), skipping save")
+                    return
+                eeg = mne.io.RawArray(self.data, eeg_info)
+                eeg._filenames = [fname]
             elif len(self.data.shape) == 3:  # epoched
-                self.data = self.data[:, :26]
-                epoch_info = mne.create_info(list(self.labels), self.Fs, "eeg")
-                fname = f"{savepath}/{outname}.set"
-                epochs = mne.EpochsArray(self.data, epoch_info)
-                # epochs._filenames = [fname]
-                Path(fname).parent.mkdir(parents=True, exist_ok=True)
-                epochs.set_eeg_reference()
-                epochs.export(fname, overwrite=True)
+                if len(self.data) == 0:
+                    print(f"No good data left ({idcode}), skipping save")
+                    return
+                eeg = mne.EpochsArray(self.data, eeg_info)
+            else:
+                raise ValueError(f"Invalid data shape {self.data.shape}")
+            if remove_peripheral:
+                eeg.drop_channels(['E1', 'E8', 'E14', 'E17', 'E21', 'E25', 'E32', 'E38', 'E39', 'E43', 'E44', 'E44', 'E48', 'E49', 'E50', 'E56', 'E57', 'E63', 'E68', 'E73', 'E81', 'E88', 'E94', 'E99', 'E100', 'E101', 'E107', 'E113', 'E114', 'E115', 'E119', 'E120', 'E121', 'E125', 'E126', 'E127', 'E128'])
+            eeg.export(fname, overwrite=True)
 
     def plot_EEG(self, inp='data', scaling=[-70, 70], title=None):
 
@@ -1285,6 +1094,7 @@ class dataset:
                 self.t = t
                 self.Fs = Fs
                 self.trls = trls
+                self.ch_cnt = 26  # default
 
             trl = 0
             end = 0
@@ -1371,7 +1181,7 @@ class dataset:
 
         if len(data.shape) == 3:
             n_samples, n_rows, n_trials = data.shape[2], data.shape[1], data.shape[0]
-            if n_rows > 26:
+            if n_rows > self.ch_cnt:
                 n_samples, n_rows, n_trials = data.shape[2], data.shape[1], data.shape[0]
                 if 'Erbs' in self.labels:
                     Erbs = np.where(self.labels == 'Erbs')[0]
@@ -1388,7 +1198,7 @@ class dataset:
 
         elif len(data.shape) == 2:
             n_samples, n_rows = data.shape[1], data.shape[0]
-            if n_rows > 26:
+            if n_rows > self.ch_cnt:
                 # data = data[:-2,:]
                 n_samples, n_rows = data.shape[1], data.shape[0]
                 if 'ECG' in self.labels:
@@ -1484,13 +1294,13 @@ class dataset:
         ref = np.empty(self.data[:, 1, :].shape);
         ref[:] = np.nan
         if newrefchan == 'avgref':
-            ref = np.nanmean(self.data[:, :26, :], axis=1)
+            ref = np.nanmean(self.data[:, :self.ch_cnt, :], axis=1)
         else:
             idx = np.where(self.labels == newrefchan)
             ref = np.nanmean(self.data[:, idx, :])
 
         for tr in range(self.data.shape[0]):
-            for r in range(26):  # only the EEG channels!
+            for r in range(self.ch_cnt):  # only the EEG channels!
                 self.data[tr, r, :] = self.data[tr, r, :] - ref[tr, :]
 
         self.info['rereferenced'] = newrefchan
@@ -1512,18 +1322,19 @@ class dataset:
         Atrl = np.array([0, 0], dtype=int)
         ''' define the segments that contain vertical eyemovements '''
 
-        begin = Asamps[0]  # first sample of Vsamps is start of first eyeblink
-        for e in range(len(Asamps)):
-            if e >= len(Asamps) - 1:
-                end = Asamps[-1]
-                Atrl = np.vstack((Atrl, [begin, end]))
-            elif Asamps[e + 1] == Asamps[e] + 1:
-                continue
-            else:
-                end = Asamps[e]
-                Atrl = np.vstack((Atrl, [begin, end]))
-                begin = Asamps[e + 1]
-        Atrl = Atrl[1:]  # remove the first row (containing only zeros)z
+        if len(Asamps) > 0:
+            begin = Asamps[0]  # first sample of Vsamps is start of first eyeblink
+            for e in range(len(Asamps)):
+                if e >= len(Asamps) - 1:
+                    end = Asamps[-1]
+                    Atrl = np.vstack((Atrl, [begin, end]))
+                elif Asamps[e + 1] == Asamps[e] + 1:
+                    continue
+                else:
+                    end = Asamps[e]
+                    Atrl = np.vstack((Atrl, [begin, end]))
+                    begin = Asamps[e + 1]
+            Atrl = Atrl[1:]  # remove the first row (containing only zeros)z
 
         return Atrl, Asamps
 
@@ -1551,8 +1362,18 @@ class dataset:
 
         return data, trl
 
-    def _interpolate_data(self, inp, labels, neighbours, intchan):
-        return self._interpolate_data_old(inp, labels, neighbours, intchan)
+    def _interpolate_data(self, inp, labels, intchan):
+        # if True:
+        #     return self._interpolate_data_old(inp, labels, neighbours, intchan)
+        raw_info = mne.create_info(list(labels), self.Fs, "eeg")
+        raw = mne.io.RawArray(inp, raw_info)
+        raw.set_channel_types({k: "eog" for k in ["VEOG", "HEOG"]})
+        raw.set_montage(mne.channels.make_standard_montage("GSN-HydroCel-129"), match_alias={"E129": "Cz"})
+        raw.info["bads"] = list(labels[intchan])  # mark channels as bad
+        raw.interpolate_bads()
+        interpreted_data = raw.get_data()
+        repaired = True if len(intchan) < len(inp) / 3 else False
+        return interpreted_data, repaired, intchan
 
     def _interpolate_data_old(self, inp, labels, neighbours, intchan):
         from scipy.spatial import distance
@@ -1567,7 +1388,7 @@ class dataset:
              [-117.79, -1.41, 15.84], [-114.68, 26.89, 9.45]])
         labelarray = np.array(labels)
         #    intchanlabel = labels[intchan]
-        repaired = [];
+        repaired = []
         repair = []
         for b in range(len(intchan)):
             interpneighbs = []
@@ -1618,7 +1439,7 @@ class dataset:
         electroencephalogram and event-related potential recordings. Clin Neurophysiol 112, 545–550 (2001).
         This function detects when two channels are bridged by gel = essentially measuring the same signal, identified
         by low-amplitude difference waveforms (electrical distance)"""
-        n_data_rows = 26  # inp.shape[0]
+        n_data_rows = self.ch_cnt  # inp.shape[0]
         ED = np.zeros((n_data_rows, n_data_rows))
 
         for r1 in range(n_data_rows):
@@ -1675,7 +1496,7 @@ class dataset:
             return tmpARTsamps, tmpARTtrl
 
         ####----------------------------------
-        n_data_rows = 26
+        n_data_rows = self.ch_cnt
         paddedARTsamps = np.zeros((ARTsamps.shape))
 
         for r in range(n_data_rows):
