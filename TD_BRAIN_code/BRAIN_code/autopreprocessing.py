@@ -386,7 +386,7 @@ class dataset:
                                                   self.data[r, len(filtEOG) - trlpadding * self.Fs:]))
 
             artsamples = np.zeros(datapaddeddata.shape[1], dtype=int)
-            if len(Atrl) > 0:
+            if len(Atrl.shape) == 2 and len(Atrl) > 0:
                 for i in range(Atrl.shape[0]):
                     if Atrl[i, 0] == 0:
                         artsamples[0:Atrl[0, 1] + np.int((Atrl[0, 1] - 0) * padding)] = 1
@@ -717,7 +717,7 @@ class dataset:
         self.artifacts['EBsamps'] = EBsamps
         self.artifacts['EBtrl'] = EBtrl
 
-    def define_artifacts(self, time_threshold=1 / 3, z_threshold=1.96):
+    def define_artifacts(self, time_threshold=1 / 6, z_threshold=1.96):
         '''
             Define the artifacts that were detected, taking care of possible
             overlap in artifacts.
@@ -989,7 +989,7 @@ class dataset:
                     self.arttrl = ARTtrl
                     self.info['artifact removal'] = 'detected artifacts removed'
                     self.info['no. segments'] = len(trl) - 1
-                    if self.info['no. segments'] < ((1 / 3) * (totallength / (epochlength * self.Fs))):
+                    if self.info['no. segments'] < ((1 / 6) * (totallength / (epochlength * self.Fs))):
                         self.info['data quality'] = 'bad'
 
                 elif remove_artifact == 'no':
@@ -1001,7 +1001,7 @@ class dataset:
                     self.info['artifact removal'] = 'none removed'
                     self.info['no. segments'] = len(self.trl)
                     if trllength == 'all':
-                        if len(p) > ((2 / 3) * totallength):
+                        if len(p) > ((5 / 6) * totallength):
                             self.info['data quality'] = 'bad'
                         else:
                             self.info['data quality'] = 'OK'
@@ -1014,7 +1014,7 @@ class dataset:
                 self.info['artifact removal'] = 'no artifacts detected'
                 self.info['no. segments'] = len(self.trl) - 1
                 self.arttrl = [0]
-                if self.info['no. segments'] < ((1.3) * (totallength / (epochlength * self.Fs))):
+                if self.info['no. segments'] < ((1/6) * (totallength / (epochlength * self.Fs))):
                     self.info['data quality'] = 'bad'
 
         else:
@@ -1026,7 +1026,7 @@ class dataset:
             self.info['no. segments'] = len(self.trl) - 1
             self.arttrl = [0]
             if trllength == 'all':
-                if len(p) > (0.33 * totallength):
+                if len(p) > (0.1667 * totallength):
                     self.info['data quality'] = 'bad'
                 else:
                     self.info['data quality'] = 'OK'
@@ -1511,6 +1511,9 @@ class dataset:
         ''' initiate eyemovements vector '''
         Atrl = np.array([0, 0], dtype=int)
         ''' define the segments that contain vertical eyemovements '''
+
+        if len(Asamps) == 0:
+            return Atrl, Asamps
 
         begin = Asamps[0]  # first sample of Vsamps is start of first eyeblink
         for e in range(len(Asamps)):
