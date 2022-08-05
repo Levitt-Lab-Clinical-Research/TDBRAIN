@@ -7,7 +7,7 @@ from multiprocessing import Pool
 from pathlib import Path
 import shutil
 
-from preprocessing import dataset as ds
+from autopreprocessing import dataset as ds
 
 print(sys.argv)
 if len(sys.argv) != 3:
@@ -19,7 +19,7 @@ shutil.rmtree(dest, ignore_errors=True)
 def process_file(f):
     inname = str(f.resolve())
     tmpdat = ds(inname)
-    tmpdat.loaddata(data_ch_cnt=26)
+    tmpdat.loaddata()
     tmpdat.bipolarEOG()
     tmpdat.apply_filters()
     tmpdat.correct_EOG()
@@ -32,7 +32,7 @@ def process_file(f):
 
     trllength = 1
     npy = copy.deepcopy(tmpdat)
-    npy.segment(trllength=trllength, remove_artifact=True)
+    npy.segment(trllength=trllength, remove_artifact='yes')
     out_folder = dest / f.relative_to(source).parent
     out_folder.mkdir(parents=True, exist_ok=True)
     npy.save(str(out_folder.resolve()))

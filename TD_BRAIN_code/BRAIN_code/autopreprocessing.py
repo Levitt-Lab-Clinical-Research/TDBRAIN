@@ -1181,8 +1181,8 @@ class dataset:
         print('saving data \n')
         '''======== collect information about the data ========'''
 
-        idcode = self.info['fileID'].rsplit('/')[-1].split('.')[0]
-        cond = self.info['fileID'].rsplit('/')[-1].split('.')[1]
+        idcode = Path(self.info['fileID']).stem
+        cond = Path(self.info['fileID']).stem.split('.')[-1]
 
         trllength = str(self.data.shape[-1] / self.Fs)
         if self.info['data quality'] == 'OK':
