@@ -1075,6 +1075,8 @@ class dataset:
                 art_annot = mne.Annotations(onsets / self.fs, [0] * len(onsets), ["omar_start", "omar_end"] * (len(onsets) // 2))
                 eeg.set_annotations(art_annot)
                 eeg.save("test.fif", overwrite=True)
+            else:
+                eeg._annotations = []
 
             from eeglabio.utils import export_mne_epochs
 
