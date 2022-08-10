@@ -108,7 +108,7 @@ class dataset:
         self.artidata = []
         self.arttrl = []
         self.info['fileID'] = filename  # from where the input data originates
-        self.Fs = Fs  # sampling frequency (default is 500 Hz, as is standard use for Brainclinics Diagnostics EEG)
+        self.fs = Fs  # sampling frequency (default is 500 Hz, as is standard use for Brainclinics Diagnostics EEG)
         # initiate standard order of EEG- and additional channels that will be included in the
         # recorded data
         self.labels = ['Fp1', 'Fp2',
@@ -252,14 +252,14 @@ class dataset:
 
         '''
         # Determine the nyquist frequency for filtering
-        nyq = 0.5 * self.Fs
+        nyq = 0.5 * self.fs
         n_rows = self.data.shape[0]
 
         chans = n_rows
         for r in range(chans):
             if notchfilt == 'yes':
                 ''' notch filter '''
-                b, a = iirnotch(notchfreq, Q, fs=self.Fs)
+                b, a = iirnotch(notchfreq, Q, fs=self.fs)
                 data = filtfilt(b, a, self.data[r, :])
             else:
                 data = self.data[r, :]
@@ -276,7 +276,7 @@ class dataset:
         self.info['filtered'] = ['hp: ' + str(hpfreq) + ' ,lp: ' + str(lpfreq) + ' ,notch: ' + str(notchfreq)]
 
     def apply_bpfilter(self, freqrange):
-        nyq = 0.5 * self.Fs
+        nyq = 0.5 * self.fs
         high_pass = freqrange[0] / nyq
         low_pass = freqrange[1] / nyq
 
@@ -329,8 +329,8 @@ class dataset:
         trlpadding = 1
         n_data_rows = 26  # number of EEG channels
 
-        Aweight = np.zeros((len(eye_channel), n_data_rows, (2 * trlpadding * self.Fs) + self.data.shape[1]))
-        datapaddedEOG = np.zeros((len(eye_channel), (2 * trlpadding * self.Fs) + self.data.shape[1]))
+        Aweight = np.zeros((len(eye_channel), n_data_rows, (2 * trlpadding * self.fs) + self.data.shape[1]))
+        datapaddedEOG = np.zeros((len(eye_channel), (2 * trlpadding * self.fs) + self.data.shape[1]))
         #        import matplotlib.pyplot as plt
         #        plt.plot(self.data[8,:])
         #        plt.show()
@@ -351,7 +351,7 @@ class dataset:
             filtEOG = hilEOG.copy()
 
             '''filter the EOG'''
-            nyq = 0.5 * self.Fs
+            nyq = 0.5 * self.fs
             normal_cutoff = lpfreq / nyq
             b, a = butter(4, normal_cutoff, btype='lowpass', analog=False)
             filtEOG = filtfilt(b, a, EOG)
@@ -360,7 +360,7 @@ class dataset:
             hilbEOG = hilEOG[:filtEOG.shape[0]]
             amplenv = np.abs(hilbEOG)
 
-            boxdata = convolve(amplenv, boxcar(np.int(0.2 * self.Fs)), mode='same', method='direct')
+            boxdata = convolve(amplenv, boxcar(np.int(0.2 * self.fs)), mode='same', method='direct')
 
             '''.........................................................................'''
             ''' Regression NUMPY way'''
@@ -375,15 +375,15 @@ class dataset:
             ''' apply datapadding '''
 
             datapaddedEOG[n, :] = np.hstack(
-                (filtEOG[:trlpadding * self.Fs], filtEOG, filtEOG[len(filtEOG) - trlpadding * self.Fs:]))
+                (filtEOG[:trlpadding * self.fs], filtEOG, filtEOG[len(filtEOG) - trlpadding * self.fs:]))
             datapaddedboxdata = np.hstack(
-                (boxdata[:trlpadding * self.Fs], boxdata, boxdata[len(filtEOG) - trlpadding * self.Fs:]))
+                (boxdata[:trlpadding * self.fs], boxdata, boxdata[len(filtEOG) - trlpadding * self.fs:]))
             Atrl, Asamps = self._detect_artifact(datapaddedboxdata, threshold)
 
             datapaddeddata = np.zeros((n_data_rows, datapaddedEOG.shape[1]))
             for r in range(n_data_rows):
-                datapaddeddata[r, :] = np.hstack((self.data[r, :trlpadding * self.Fs], self.data[r, :],
-                                                  self.data[r, len(filtEOG) - trlpadding * self.Fs:]))
+                datapaddeddata[r, :] = np.hstack((self.data[r, :trlpadding * self.fs], self.data[r, :],
+                                                  self.data[r, len(filtEOG) - trlpadding * self.fs:]))
 
             artsamples = np.zeros(datapaddeddata.shape[1], dtype=int)
             if len(Atrl.shape) == 2 and len(Atrl) > 0:
@@ -442,7 +442,7 @@ class dataset:
 
                     newdata[r, :] = datapaddeddata[r, :] - ((Aweight[n, r, :]) * datapaddedEOG[n, :])
 
-                    self.data[r, :] = newdata[r, (trlpadding * self.Fs):datapaddedEOG.shape[1] - (trlpadding * self.Fs)]
+                    self.data[r, :] = newdata[r, (trlpadding * self.fs):datapaddedEOG.shape[1] - (trlpadding * self.fs)]
             else:
                 ARTtrl = []
                 print('Eye artifact correction: correcting 0 ' + eye_channel[n] + ' eye artifact(s)')
@@ -465,7 +465,7 @@ class dataset:
             removal.
         '''
 
-        nyq = 0.5 * self.Fs
+        nyq = 0.5 * self.fs
         high_pass = hpfreq / nyq
         low_pass = lpfreq / nyq
 
@@ -488,7 +488,7 @@ class dataset:
         hanndata = np.zeros((n_data_rows, self.data.shape[1]))
         ''' hanning smooth '''
         for r in range(n_data_rows):
-            hanndata[r, :] = convolve(amplenv[r, :], hann(np.int(0.5 * self.Fs), sym=True),
+            hanndata[r, :] = convolve(amplenv[r, :], hann(np.int(0.5 * self.fs), sym=True),
                                       mode='same')  # , method ='direct')
         ''' zvalue threshold '''
         Zdata = zscore(hanndata, axis=1)
@@ -501,10 +501,10 @@ class dataset:
                 # introduce an absolute threshold to extract only EMG data that is evident?
                 didx = np.where(amplenv[r, sidx] > 3)
                 tmpEMGsamps[r, sidx[didx]] = 1
-                boxdata = convolve(tmpEMGsamps[r, :], boxcar(np.int(0.5 * self.Fs)), mode='same', method='direct')
+                boxdata = convolve(tmpEMGsamps[r, :], boxcar(np.int(0.5 * self.fs)), mode='same', method='direct')
                 inpEMGsamps[r, np.where(boxdata > 0)] = 1
 
-        EMGtrl, EMGsamps = self._artifact_samps_trl(inpEMGsamps, padding, self.Fs, self.data[-1].shape[0])
+        EMGtrl, EMGsamps = self._artifact_samps_trl(inpEMGsamps, padding, self.fs, self.data[-1].shape[0])
 
         print('EMG detection: detected ' + str(len(EMGtrl)) + ' artifact(s)')
 
@@ -544,7 +544,7 @@ class dataset:
                 didx = np.where(diffdata[r, sidx] > 30)[0]
                 inpJUMPsamps[r, sidx[didx]] = 1
 
-        JUMPtrl, JUMPsamps = self._artifact_samps_trl(inpJUMPsamps, padding, self.Fs, self.data[-1].shape[0])
+        JUMPtrl, JUMPsamps = self._artifact_samps_trl(inpJUMPsamps, padding, self.fs, self.data[-1].shape[0])
 
         print('Jump/ baseline shift : ' + str(len(JUMPtrl)) + ' jumps/baselineshifts detected')
 
@@ -578,10 +578,10 @@ class dataset:
         from scipy.stats import kurtosis
 
         if winlen == 'all':
-            winlen = self.data.shape[-1] / self.Fs
+            winlen = self.data.shape[-1] / self.fs
 
-        winstarts = np.arange(0, self.data.shape[1] - (winlen * self.Fs), overlap * self.Fs)
-        winends = winstarts + winlen * self.Fs
+        winstarts = np.arange(0, self.data.shape[1] - (winlen * self.fs), overlap * self.fs)
+        winends = winstarts + winlen * self.fs
 
         n_data_rows = 26  # number of EEG channels
 
@@ -598,7 +598,7 @@ class dataset:
 
         del kurt
 
-        KURTtrl, KURTsamps = self._artifact_samps_trl(inpKURTsamps, padding, self.Fs, self.data[-1].shape[0])
+        KURTtrl, KURTsamps = self._artifact_samps_trl(inpKURTsamps, padding, self.fs, self.data[-1].shape[0])
 
         if len(KURTtrl) > 0:
             self.artifacts['KURTsamps'] = KURTsamps
@@ -635,10 +635,10 @@ class dataset:
 
         '''
         if winlen == 'all':
-            winlen = self.data.shape[-1] / self.Fs
+            winlen = self.data.shape[-1] / self.fs
 
-        winstarts = np.arange(0, self.data.shape[1] - (winlen * self.Fs), overlap * self.Fs)
-        winends = winstarts + winlen * self.Fs
+        winstarts = np.arange(0, self.data.shape[1] - (winlen * self.fs), overlap * self.fs)
+        winends = winstarts + winlen * self.fs
 
         n_data_rows = 26  # number of EEG channels
 
@@ -655,7 +655,7 @@ class dataset:
 
         del swing
 
-        SWINGtrl, SWINGsamps = self._artifact_samps_trl(inpSWINGsamps, padding, self.Fs, self.data[-1].shape[0])
+        SWINGtrl, SWINGsamps = self._artifact_samps_trl(inpSWINGsamps, padding, self.fs, self.data[-1].shape[0])
 
         if len(SWINGtrl) > 0:
             self.artifacts['SWINGsamps'] = SWINGsamps
@@ -670,7 +670,7 @@ class dataset:
         self.artifacts['SWINGtrl'] = SWINGtrl
 
     def residual_eyeblinks(self, threshold=0.5, padding=0.1):
-        nyq = 0.5 * self.Fs
+        nyq = 0.5 * self.fs
         high_pass = 0.5 / nyq
         low_pass = 6 / nyq
 
@@ -695,7 +695,7 @@ class dataset:
         hanndata = np.zeros((n_data_rows, self.data.shape[1]))
         ''' hanning smooth '''
         for r in range(n_data_rows):
-            hanndata[r, :] = convolve(amplenv[r, :], hann(np.int(1 * self.Fs), sym=True),
+            hanndata[r, :] = convolve(amplenv[r, :], hann(np.int(1 * self.fs), sym=True),
                                       mode='same')  # , method ='direct')
 
         ''' zvalue threshold '''
@@ -709,7 +709,7 @@ class dataset:
                 didx = np.where(amplenv[r, sidx] > 60)
                 inpEBsamps[r, sidx[didx]] = 1
 
-        EBtrl, EBsamps = self._artifact_samps_trl(inpEBsamps, padding, self.Fs, self.data[-1].shape[0])
+        EBtrl, EBsamps = self._artifact_samps_trl(inpEBsamps, padding, self.fs, self.data[-1].shape[0])
 
         print('EB detection: detected ' + str(len(EBtrl)) + ' artifact(s)')
 
@@ -815,7 +815,7 @@ class dataset:
 
         hannwin = hann(np.int(self.data.shape[-1]))
         power = np.abs(fft(self.data[:n_data_rows, :]) * hannwin) ** 2
-        freqs = np.linspace(0, self.Fs / 2, int(len(power[0, :]) / 2))
+        freqs = np.linspace(0, self.fs / 2, int(len(power[0, :]) / 2))
         fid = [(np.where((freqs > 55) & (freqs < 95)))][0][0]
         # fid2 = np.append(fid,[np.where((freqs > 55) & (freqs < 95))][0][0])
         overallpower = power[:n_data_rows, fid]
@@ -913,7 +913,7 @@ class dataset:
         totallength = self.data.shape[-1]
 
         if trllength == 'all':
-            epochlength = totallength / self.Fs
+            epochlength = totallength / self.fs
         else:
             epochlength = trllength
 
@@ -952,11 +952,11 @@ class dataset:
                     ''' select the segments around the artifacts (as much as possible) '''
                     ''' from the first sample to the beginning of the last artifact '''
                     t = 0
-                    trials = np.zeros((1, self.data.shape[0], np.int(self.Fs * epochlength)));
+                    trials = np.zeros((1, self.data.shape[0], np.int(self.fs * epochlength)));
                     marktrials = trials.copy();
                     trl = np.array([0, 0], dtype=int)
                     for i in range(ARTtrl.shape[0]):
-                        if (ARTtrl[i, 0] - t) > (np.int(epochlength * self.Fs)):
+                        if (ARTtrl[i, 0] - t) > (np.int(epochlength * self.fs)):
                             tmp = self.data[:, t:ARTtrl[i, 0]]
                             segs, segstrl = self._EEGsegmenting(np.asarray(tmp), epochlength)
                             trials = np.concatenate([trials, segs], axis=0)
@@ -968,7 +968,7 @@ class dataset:
                         t = ARTtrl[i, 1]
 
                     ''' data from last artifact untill end of recording '''
-                    if ARTtrl[-1, 1] < self.data.shape[-1] - epochlength * self.Fs:
+                    if ARTtrl[-1, 1] < self.data.shape[-1] - epochlength * self.fs:
                         tmp = self.data[:, t:self.data.shape[-1]]
                         segs, segstrl = self._EEGsegmenting(np.asarray(tmp), epochlength)
                         trials = np.concatenate([trials, segs], axis=0)
@@ -989,7 +989,7 @@ class dataset:
                     self.arttrl = ARTtrl
                     self.info['artifact removal'] = 'detected artifacts removed'
                     self.info['no. segments'] = len(trl) - 1
-                    if self.info['no. segments'] < ((1 / 6) * (totallength / (epochlength * self.Fs))):
+                    if self.info['no. segments'] < ((1 / 6) * (totallength / (epochlength * self.fs))):
                         self.info['data quality'] = 'bad'
 
                 elif remove_artifact == 'no':
@@ -1014,7 +1014,7 @@ class dataset:
                 self.info['artifact removal'] = 'no artifacts detected'
                 self.info['no. segments'] = len(self.trl) - 1
                 self.arttrl = [0]
-                if self.info['no. segments'] < ((1/6) * (totallength / (epochlength * self.Fs))):
+                if self.info['no. segments'] < ((1/6) * (totallength / (epochlength * self.fs))):
                     self.info['data quality'] = 'bad'
 
         else:
@@ -1030,7 +1030,7 @@ class dataset:
                     self.info['data quality'] = 'bad'
                 else:
                     self.info['data quality'] = 'OK'
-            elif self.info['no. segments'] < (0.33 * (totallength / (epochlength * self.Fs))):
+            elif self.info['no. segments'] < (0.33 * (totallength / (epochlength * self.fs))):
                 self.info['data quality'] = 'bad'
 
     def save_pdfs(self, savepath, inp='data', scaling=[-70, 70]):
@@ -1048,7 +1048,7 @@ class dataset:
         idcode = self.info['fileID'].rsplit('/')[-1].split('.')[0]
         cond = self.info['fileID'].rsplit('/')[-1].split('.')[1]
 
-        trllength = str(self.data.shape[-1] / self.Fs)
+        trllength = str(self.data.shape[-1] / self.fs)
         if self.info['data quality'] == 'OK':
             outname = idcode + '_' + cond + '_' + trllength + 's'
         elif self.info['data quality'] == 'bad':
@@ -1111,7 +1111,7 @@ class dataset:
                 fig = plt.figure(num=seg, figsize=(20, 12), tight_layout=True)
 
                 plt.close()
-                t = np.arange(0, n_samples / self.Fs, (n_samples / self.Fs) / n_samples)
+                t = np.arange(0, n_samples / self.fs, (n_samples / self.fs) / n_samples)
 
                 fig = plt.figure(num=seg, figsize=(20, 12), tight_layout=True)
                 ax1 = fig.add_subplot(1, 1, 1)
@@ -1132,13 +1132,13 @@ class dataset:
                     segments.append(np.column_stack((t, data[seg, i, :])))
                     ticklocs.append(i * dr)
 
-                ticks = np.arange(0, (data.shape[-1] / self.Fs) + ((data.shape[-1] / self.Fs) / 10),
-                                  (data.shape[-1] / self.Fs) / 10)
+                ticks = np.arange(0, (data.shape[-1] / self.fs) + ((data.shape[-1] / self.fs) / 10),
+                                  (data.shape[-1] / self.fs) / 10)
                 ax1.set_xticks(ticks, minor=False)
 
-                ticksl = np.arange(np.around(trl[seg, 0] / self.Fs, decimals=2),
-                                   np.around((trl[seg, 0] / self.Fs) + (n_samples / self.Fs), decimals=2) + 1,
-                                   np.around((n_samples / self.Fs) / 10, decimals=2))
+                ticksl = np.arange(np.around(trl[seg, 0] / self.fs, decimals=2),
+                                   np.around((trl[seg, 0] / self.fs) + (n_samples / self.fs), decimals=2) + 1,
+                                   np.around((n_samples / self.fs) / 10, decimals=2))
 
                 ticklabels = list(ticksl)  # np.arange(ticks)
                 xlabels = ['%.1f' % elem for elem in ticklabels]
@@ -1184,7 +1184,7 @@ class dataset:
         idcode = Path(self.info['fileID']).stem
         cond = Path(self.info['fileID']).stem.split('.')[-1]
 
-        trllength = str(self.data.shape[-1] / self.Fs)
+        trllength = str(self.data.shape[-1] / self.fs)
         if self.info['data quality'] == 'OK':
             outname = idcode + '_' + cond + '_' + trllength + 's'
         else:
@@ -1202,7 +1202,7 @@ class dataset:
             for i in range(self.data.shape[0]):
                 if len(self.data.shape) == 3:
                     df = pd.DataFrame(self.data[i, :, :].T)
-                    df.to_csv(csvpath + str((self.trl[i, 0] / self.Fs) * 1000) + '.csv', sep=',',
+                    df.to_csv(csvpath + str((self.trl[i, 0] / self.fs) * 1000) + '.csv', sep=',',
                               header=list(self.labels), compression=None)
                 else:
                     df = pd.DataFrame(self.data[:, :].T)
@@ -1226,7 +1226,7 @@ class dataset:
                            'dimord': 'rpt_chan_time',
                            'artifacts': self.arttrl,
                            'Fs': 500,
-                           'time': np.arange(0, (self.data.shape[-1] / self.Fs), 1 / self.Fs),
+                           'time': np.arange(0, (self.data.shape[-1] / self.fs), 1 / self.fs),
                            'info': self.info}
             sio.savemat(savepath + '/' + outname + '.mat', mat_dataset)
 
@@ -1236,7 +1236,7 @@ class dataset:
             self.labels = self.labels[:26]
             if len(self.data.shape) == 2:  # continuous
                 self.data = self.data[:26]
-                raw_info = mne.create_info(list(self.labels), self.Fs, "eeg")
+                raw_info = mne.create_info(list(self.labels), self.fs, "eeg")
                 fname = f"{savepath}/{outname}.set"
                 raw = mne.io.RawArray(self.data, raw_info)
                 raw._filenames = [fname]
@@ -1245,7 +1245,7 @@ class dataset:
                 raw.export(fname, overwrite=True)
             elif len(self.data.shape) == 3:  # epoched
                 self.data = self.data[:, :26]
-                epoch_info = mne.create_info(list(self.labels), self.Fs, "eeg")
+                epoch_info = mne.create_info(list(self.labels), self.fs, "eeg")
                 fname = f"{savepath}/{outname}.set"
                 epochs = mne.EpochsArray(self.data, epoch_info)
                 # epochs._filenames = [fname]
@@ -1404,7 +1404,7 @@ class dataset:
             n_trials = 1
             trl = np.array([0, 0], dtype=int)
 
-        t = np.arange(0, n_samples / self.Fs, (n_samples / self.Fs) / n_samples)
+        t = np.arange(0, n_samples / self.fs, (n_samples / self.fs) / n_samples)
 
         if title == None:
             fig = plt.figure(self.info['fileID'].rsplit('/')[-1], figsize=(6, 9))
@@ -1432,13 +1432,13 @@ class dataset:
 
             ticklocs.append(i * dr)
 
-        ticks = np.arange(0, (data.shape[-1] / self.Fs) + ((data.shape[-1] / self.Fs) / 10),
-                          (data.shape[-1] / self.Fs) / 10)
+        ticks = np.arange(0, (data.shape[-1] / self.fs) + ((data.shape[-1] / self.fs) / 10),
+                          (data.shape[-1] / self.fs) / 10)
         ax1.set_xticks(ticks, minor=False)
 
-        ticksl = np.arange(np.around(trl.flat[0] / self.Fs, decimals=2),
-                           np.around((trl.flat[0] / self.Fs) + (n_samples / self.Fs), decimals=2) + 1,
-                           np.around((n_samples / self.Fs) / 10, decimals=2))
+        ticksl = np.arange(np.around(trl.flat[0] / self.fs, decimals=2),
+                           np.around((trl.flat[0] / self.fs) + (n_samples / self.fs), decimals=2) + 1,
+                           np.around((n_samples / self.fs) / 10, decimals=2))
 
         ticklabels = list(ticksl)  # np.arange(ticks)
         xlabels = ['%.1f' % elem for elem in ticklabels]
@@ -1463,7 +1463,7 @@ class dataset:
         axs['axnext'] = plt.axes([0.84, 0.10, 0.10, 0.04])  # next button
         axs['axprev'] = plt.axes([0.72, 0.10, 0.10, 0.04])  # previous button
 
-        callback = GUIButtons(data, axs, t, self.Fs, trl)
+        callback = GUIButtons(data, axs, t, self.fs, trl)
 
         ''' buttons '''
         bnext = Button(axs['axnext'], '>')

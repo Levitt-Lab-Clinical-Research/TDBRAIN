@@ -16,6 +16,7 @@ source = Path(sys.argv[1])
 dest = Path(sys.argv[2]).resolve()
 shutil.rmtree(dest, ignore_errors=True)
 
+
 def process_file(f):
     inname = str(f.resolve())
     tmpdat = ds(inname)

@@ -99,7 +99,7 @@ class dataset:
         '''
 
     def __init__(self, filename, fs=500):
-        # initiate place holders for the variables that will be created by the
+        # initiate placeholders for the variables that will be created by the
         # functions within the class
         self.artifacts = {}
         self.info = {}
@@ -163,9 +163,10 @@ class dataset:
         # raw.pick_channels(self.labels)  # select only these channels
         raw.load_data()
         raw.pick(mne.pick_types(raw.info, eeg=True))
-        self.labels = raw.ch_names
         self.ch_cnt = len(raw.ch_names) if data_ch_cnt is None else data_ch_cnt
         self.total_ch_cnt = self.ch_cnt if data_ch_cnt is None else data_ch_cnt + 4
+        raw.drop_channels(raw.ch_names[self.total_ch_cnt:])
+        self.labels = raw.ch_names
         self.mne_raw = raw
         self.montage = raw.get_montage()
         self.data = raw.get_data()
@@ -485,7 +486,7 @@ class dataset:
             if ~np.isnan(Zdata[r, 0]):
                 sidx = np.where(Zdata[r, :] > np.nanmean(Zdata) + threshold)[0]
                 # introduce an absolute threshold to extract only EMG data that is evident?
-                didx = np.where(amplenv[r, sidx] > 3)
+                didx = np.where(amplenv[r, sidx]     > 3)
                 tmpEMGsamps[r, sidx[didx]] = 1
                 boxdata = convolve(tmpEMGsamps[r, :], boxcar(np.int(0.5 * self.fs)), mode='same', method='direct')
                 inpEMGsamps[r, np.where(boxdata > 0)] = 1
@@ -703,7 +704,7 @@ class dataset:
         self.artifacts['EBsamps'] = EBsamps
         self.artifacts['EBtrl'] = EBtrl
 
-    def define_artifacts(self, time_threshold=1 / 6, z_threshold=1.96):
+    def define_artifacts(self, time_threshold=1/6, z_threshold=1.96):
         '''
             Define the artifacts that were detected, taking care of possible
             overlap in artifacts.
@@ -864,8 +865,8 @@ class dataset:
             self.info['data quality'] = 'OK'
 
         self.trl = np.array([0, self.data.shape[-1]], dtype=int)
-        self.data = np.vstack((self.data[:self.ch_cnt + 1, :], artsamples, self.data[self.ch_cnt + 1:, :]))
-        self.labels = np.hstack((self.labels[:self.ch_cnt + 1], 'artifacts', self.labels[self.ch_cnt + 1:]))
+        self.data = np.vstack((self.data[:self.ch_cnt, :], artsamples, self.data[self.ch_cnt:, :]))
+        self.labels = np.hstack((self.labels[:self.ch_cnt], 'artifacts', self.labels[self.ch_cnt:]))
         self.info['no. segments'] = 0
 
     def segment(self, marking='no', trllength=1, remove_artifact=False):
@@ -1064,7 +1065,8 @@ class dataset:
 
             else:
                 raise ValueError(f"Invalid data shape {self.data.shape}")
-            chs_drop = [ch for ch in ['VEOG', 'HEOG', "artifacts"] if ch in eeg.ch_names]
+            # chs_drop = [ch for ch in ['VEOG', 'HEOG', "artifacts"] if ch in eeg.ch_names]
+            chs_drop = self.labels[self.ch_cnt:]
             eeg.drop_channels(chs_drop)  # drop artifact channels
             eeg.set_eeg_reference()
 
